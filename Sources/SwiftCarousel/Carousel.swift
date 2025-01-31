@@ -1,5 +1,5 @@
 //
-//  File.swift
+//  Carousel.swift
 //  SwiftCarousel
 //
 //  Created by Ganesh Waje on 31/01/25.
@@ -9,104 +9,64 @@ import SwiftUI
 
 public struct Carousel<Item: Identifiable, Content: View>: View {
   @StateObject private var state: CarouselState<Item>
+  @ObservedObject private var animator: CarouselAnimator
+  
   private let items: [Item]
   private let configuration: CarouselConfiguration
   private let content: (Item) -> Content
   
-  @State private var offset: CGFloat = 0
-  @State private var dragging: Bool = false
-  
-  // Create wrapped items for infinite scrolling
-  private var wrappedItems: [Item] {
-    guard configuration.scrollBehavior.isInfinite && !items.isEmpty else { return items }
-    return [items.last!] + items + [items.first!]
-  }
-  
   public init(
-      items: [Item],
-      configuration: CarouselConfiguration = .init(),
-      @ViewBuilder content: @escaping (Item) -> Content
+    items: [Item],
+    configuration: CarouselConfiguration = .init(),
+    @ViewBuilder content: @escaping (Item) -> Content
   ) {
-      self.items = items
-      self.configuration = configuration
-      self.content = content
-      self._state = StateObject(wrappedValue: CarouselState(
-          items: items,
-          configuration: configuration
-      ))
-  }
-  
-  private var actualIndex: Int {
-    guard configuration.scrollBehavior.isInfinite else { return state.currentIndex }
-    return state.currentIndex + 1 // Account for the extra item at start
+    self.items = items
+    self.configuration = configuration
+    self.content = content
+    
+    let state = CarouselState(
+      items: items,
+      configuration: configuration
+    )
+    self._state = StateObject(wrappedValue: state)
+    self.animator = state.animator
   }
   
   public var body: some View {
     VStack(spacing: 16) {
       GeometryReader { geometry in
-        let itemWidth = geometry.size.width - configuration.spacing.sideMargins * 2
-        let totalWidth = itemWidth + configuration.spacing.interItem
+        let offset = CarouselOffset(
+          containerWidth: geometry.size.width,
+          itemSpacing: configuration.spacing.interItem,
+          sideInsets: configuration.spacing.sideMargins,
+          itemCount: items.count
+        )
         
         HStack(spacing: configuration.spacing.interItem) {
-          ForEach(wrappedItems) { item in
+          ForEach(items) { item in
             content(item)
-              .frame(width: itemWidth)
+              .frame(
+                width: geometry.size.width - configuration.spacing.sideMargins * 2
+              )
           }
         }
-        .offset(x: -CGFloat(actualIndex) * totalWidth + offset)
+        .offset(
+          x: offset.offset(
+            for: animator.visualIndex,
+            dragOffset: animator.dragOffset
+          )
+        )
         .gesture(
           DragGesture()
             .onChanged { value in
-              dragging = true
-              offset = value.translation.width
-              state.stopAutoScroll()
+              state.isDragging = true
+              state.handleDragGesture(.onChanged(value), in: geometry)
             }
             .onEnded { value in
-              dragging = false
-              let predictedEndOffset = value.predictedEndTranslation.width
-              let velocityThreshold: CGFloat = 500
-              
-              withAnimation(.easeOut(duration: 0.3)) {
-                if abs(predictedEndOffset) > velocityThreshold {
-                  if predictedEndOffset > 0 {
-                    moveToPrevious()
-                  } else {
-                    moveToNext()
-                  }
-                } else if abs(offset) > itemWidth / 2 {
-                  if offset > 0 {
-                    moveToPrevious()
-                  } else {
-                    moveToNext()
-                  }
-                }
-                offset = 0
-              }
-              
-              if let interval = configuration.scrollBehavior.autoScrollInterval {
-                state.startAutoScroll(interval: interval)
-              }
+              state.isDragging = false
+              state.handleDragGesture(.onEnded(value), in: geometry)
             }
         )
-        .onChange(of: state.currentIndex) { newIndex in
-          if configuration.scrollBehavior.isInfinite {
-            if newIndex < 0 {
-              // Jump to end
-              DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                withAnimation(.none) {
-                  state.currentIndex = items.count - 1
-                }
-              }
-            } else if newIndex >= items.count {
-              // Jump to start
-              DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                withAnimation(.none) {
-                  state.currentIndex = 0
-                }
-              }
-            }
-          }
-        }
       }
       
       if configuration.showsIndicator && items.count > 1 {
@@ -128,12 +88,11 @@ public struct Carousel<Item: Identifiable, Content: View>: View {
       state.stopAutoScroll()
     }
   }
-  
-  private func moveToNext() {
-    state.currentIndex += 1
-  }
-  
-  private func moveToPrevious() {
-    state.currentIndex -= 1
+}
+
+extension DragGesture.Value {
+  enum GestureType {
+    case onChanged(DragGesture.Value)
+    case onEnded(DragGesture.Value)
   }
 }
