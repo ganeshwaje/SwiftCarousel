@@ -31,6 +31,7 @@ struct NativePageIndicator: UIViewRepresentable {
     pageControl.currentPage = currentPage
     pageControl.pageIndicatorTintColor = UIColor(inactiveTint)
     pageControl.currentPageIndicatorTintColor = UIColor(activeTint)
+    pageControl.isUserInteractionEnabled = false
     return pageControl
   }
   

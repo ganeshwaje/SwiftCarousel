@@ -1,4 +1,6 @@
 
+# In Progress...
+
 # SwiftCarousel
 
 A customizable, performance-optimized carousel component for SwiftUI applications.
@@ -70,9 +72,9 @@ let config = CarouselConfiguration(
 
 Contributions are welcome! If you find a bug or have a feature request, please open an issue. If you'd like to contribute code, follow these steps:
 
-Fork the repository.
-Create a new branch for your feature or bugfix.
-Submit a pull request.
+- Fork the repository.
+- Create a new branch for your feature or bugfix.
+- Submit a pull request.
 
 ## License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
